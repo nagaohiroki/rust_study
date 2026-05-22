@@ -1,20 +1,96 @@
-﻿use wgpu;
+﻿use std::sync::Arc;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
     window::WindowBuilder,
 };
-fn main() {
-    pollster::block_on(run());
-    open_window();
+struct State {
+    surface: wgpu::Surface<'static>,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    config: wgpu::SurfaceConfiguration,
+}
+impl State {
+    fn resize(&mut self, new_size: &winit::dpi::PhysicalSize<u32>) {
+        self.config.width = new_size.width;
+        self.config.height = new_size.height;
+        self.surface.configure(&self.device, &self.config);
+    }
+}
+async fn init_wgpu(window: Arc<winit::window::Window>) -> State {
+    let instance = wgpu::Instance::default();
+    let surface = instance.create_surface(window.clone()).unwrap();
+    let adapter = instance
+        .request_adapter(&wgpu::RequestAdapterOptions::default())
+        .await
+        .unwrap();
+    let (device, queue) = adapter
+        .request_device(&wgpu::DeviceDescriptor::default(), None)
+        .await
+        .unwrap();
+    let sufface_caps = surface.get_capabilities(&adapter);
+    let size = window.inner_size();
+    let config = wgpu::SurfaceConfiguration {
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        format: sufface_caps.formats[0],
+        width: size.width,
+        height: size.height,
+        present_mode: wgpu::PresentMode::Fifo,
+        alpha_mode: sufface_caps.alpha_modes[0],
+        view_formats: vec![],
+        desired_maximum_frame_latency: 2,
+    };
+    surface.configure(&device, &config);
+    State {
+        surface,
+        device,
+        queue,
+        config,
+    }
+}
+fn render(state: &State) {
+    let ouput = state.surface.get_current_texture().unwrap();
+    let view = ouput
+        .texture
+        .create_view(&wgpu::TextureViewDescriptor::default());
+    let mut encoder = state
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+    {
+        let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.5,
+                        g: 0.2,
+                        b: 0.3,
+                        a: 1.0,
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+    }
+    state.queue.submit(std::iter::once(encoder.finish()));
+    ouput.present();
 }
 fn open_window() {
     let event_loop = EventLoop::new().unwrap();
-    let window = WindowBuilder::new()
-        .with_title("Rust wgpu Window")
-        .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0))
-        .build(&event_loop)
-        .unwrap();
+    let window = Arc::new(
+        WindowBuilder::new()
+            .with_title("Rust wgpu Window")
+            // .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0))
+            .build(&event_loop)
+            .unwrap(),
+    );
+
+    let mut state = pollster::block_on(init_wgpu(window.clone()));
     event_loop
         .run(move |event, control_flow| match event {
             Event::WindowEvent {
@@ -22,8 +98,14 @@ fn open_window() {
                 window_id,
             } if window_id == window.id() => match event {
                 WindowEvent::CloseRequested => control_flow.exit(),
+                WindowEvent::RedrawRequested => render(&state),
+                WindowEvent::Resized(size) => state.resize(size),
+                WindowEvent::ScaleFactorChanged { .. } => state.resize(&window.inner_size()),
                 _ => {}
             },
+            Event::AboutToWait => {
+                window.request_redraw();
+            }
             _ => {}
         })
         .unwrap();
@@ -40,4 +122,8 @@ async fn run() {
     let info = adapter.get_info();
     println!("usage GPU: {}", info.name);
     println!("backend: {:?}", info.backend);
+}
+fn main() {
+    pollster::block_on(run());
+    open_window();
 }
