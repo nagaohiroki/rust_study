@@ -85,7 +85,7 @@ fn open_window() {
     let window = Arc::new(
         WindowBuilder::new()
             .with_title("Rust wgpu Window")
-            // .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0))
+            .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0))
             .build(&event_loop)
             .unwrap(),
     );
