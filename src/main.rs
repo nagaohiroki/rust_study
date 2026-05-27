@@ -9,6 +9,7 @@ struct State {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
+    render_pipeline: wgpu::RenderPipeline,
 }
 impl State {
     fn resize(&mut self, new_size: &winit::dpi::PhysicalSize<u32>) {
@@ -41,11 +42,40 @@ async fn init_wgpu(window: Arc<winit::window::Window>) -> State {
         desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &config);
+    let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+    let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("Render Pipeline Layout"),
+        bind_group_layouts: &[],
+        push_constant_ranges: &[],
+    });
+    let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Render Pipeline"),
+        layout: Some(&render_pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_main",
+            buffers: &[],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_main",
+            targets: &[Some(wgpu::ColorTargetState {
+                format: config.format,
+                blend: Some(wgpu::BlendState::REPLACE),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    });
     State {
         surface,
         device,
         queue,
         config,
+        render_pipeline,
     }
 }
 fn render(state: &State) {
@@ -57,7 +87,7 @@ fn render(state: &State) {
         .device
         .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
     {
-        let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view,
@@ -76,6 +106,8 @@ fn render(state: &State) {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
+        render_pass.set_pipeline(&state.render_pipeline);
+        render_pass.draw(0..3, 0..1);
     }
     state.queue.submit(std::iter::once(encoder.finish()));
     ouput.present();
