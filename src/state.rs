@@ -3,6 +3,12 @@ use wgpu;
 use winit;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct Uniforms {
+    time: f32,
+    _padding: [f32; 3],
+}
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
     position: [f32; 3],
     color: [f32; 3],
@@ -55,12 +61,24 @@ pub struct State {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
+    uniform_buffer: wgpu::Buffer,
+    uniform_bind_group: wgpu::BindGroup,
+    start_time: std::time::Instant,
 }
 impl State {
     pub fn resize(&mut self, new_size: &winit::dpi::PhysicalSize<u32>) {
         self.config.width = new_size.width;
         self.config.height = new_size.height;
         self.surface.configure(&self.device, &self.config);
+    }
+    pub fn update(&mut self) {
+        let elapsed = self.start_time.elapsed().as_secs_f32();
+        let uniforms = Uniforms {
+            time: elapsed,
+            _padding: [0.0; 3],
+        };
+        self.queue
+            .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
     }
 }
 pub async fn init_wgpu(window: Arc<winit::window::Window>) -> State {
@@ -88,9 +106,40 @@ pub async fn init_wgpu(window: Arc<winit::window::Window>) -> State {
     };
     surface.configure(&device, &config);
     let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+    let uniforms = Uniforms {
+        time: 0.0,
+        _padding: [0.0; 3],
+    };
+    let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Uniform Buffer"),
+        contents: bytemuck::bytes_of(&uniforms),
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    });
+    let uniform_bind_group_layout =
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("uniform_bind_group_layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+    let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("uniform_bind_group"),
+        layout: &uniform_bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: uniform_buffer.as_entire_binding(),
+        }],
+    });
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
-        bind_group_layouts: &[],
+        bind_group_layouts: &[&uniform_bind_group_layout],
         push_constant_ranges: &[],
     });
     let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -127,6 +176,7 @@ pub async fn init_wgpu(window: Arc<winit::window::Window>) -> State {
         usage: wgpu::BufferUsages::INDEX,
     });
     let num_indices = INDICES.len() as u32;
+    let start_time = std::time::Instant::now();
     State {
         surface,
         device,
@@ -136,6 +186,9 @@ pub async fn init_wgpu(window: Arc<winit::window::Window>) -> State {
         vertex_buffer,
         index_buffer,
         num_indices,
+        uniform_buffer,
+        uniform_bind_group,
+        start_time,
     }
 }
 pub fn render(state: &State) {
@@ -169,6 +222,7 @@ pub fn render(state: &State) {
         render_pass.set_pipeline(&state.render_pipeline);
         render_pass.set_vertex_buffer(0, state.vertex_buffer.slice(..));
         render_pass.set_index_buffer(state.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        render_pass.set_bind_group(0, &state.uniform_bind_group, &[]);
         render_pass.draw_indexed(0..state.num_indices, 0, 0..1);
     }
     state.queue.submit(std::iter::once(encoder.finish()));

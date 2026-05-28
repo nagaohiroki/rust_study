@@ -22,7 +22,10 @@ fn open_window() {
                 window_id,
             } if window_id == window.id() => match event {
                 WindowEvent::CloseRequested => control_flow.exit(),
-                WindowEvent::RedrawRequested => state::render(&wgpu_state),
+                WindowEvent::RedrawRequested => {
+                    wgpu_state.update();
+                    state::render(&wgpu_state);
+                }
                 WindowEvent::Resized(size) => wgpu_state.resize(size),
                 WindowEvent::ScaleFactorChanged { .. } => wgpu_state.resize(&window.inner_size()),
                 _ => {}
