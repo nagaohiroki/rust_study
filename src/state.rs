@@ -4,8 +4,7 @@ use winit;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Uniforms {
-    time: f32,
-    _padding: [f32; 3],
+    mvp: glam::Mat4,
 }
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -73,10 +72,20 @@ impl State {
     }
     pub fn update(&mut self) {
         let elapsed = self.start_time.elapsed().as_secs_f32();
-        let uniforms = Uniforms {
-            time: elapsed,
-            _padding: [0.0; 3],
-        };
+        let rotation = glam::Mat4::from_rotation_z(elapsed);
+        let translation = glam::Mat4::from_translation(glam::vec3(elapsed.sin() * 0.5, 0.0, 0.0));
+        let scale = glam::Mat4::from_scale(glam::vec3(0.5, 0.5, 1.0));
+        let model = translation * rotation * scale;
+        let eye = glam::vec3(0.0, 1.5, -2.0);
+        let dir = glam::vec3(0.0, 0.0, 0.0);
+        let up = glam::Vec3::Y;
+        let view = glam::Mat4::look_at_lh(eye, dir, up);
+        let aspect_ratio = self.config.width as f32 / self.config.height as f32;
+        let z_near = 0.1;
+        let z_far = 100.0;
+        let proj = glam::Mat4::perspective_lh(45.0f32.to_radians(), aspect_ratio, z_near, z_far);
+        let mvp = proj * view * model;
+        let uniforms = Uniforms { mvp: mvp };
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
     }
@@ -107,8 +116,7 @@ pub async fn init_wgpu(window: Arc<winit::window::Window>) -> State {
     surface.configure(&device, &config);
     let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
     let uniforms = Uniforms {
-        time: 0.0,
-        _padding: [0.0; 3],
+        mvp: glam::Mat4::IDENTITY,
     };
     let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Uniform Buffer"),
@@ -120,7 +128,7 @@ pub async fn init_wgpu(window: Arc<winit::window::Window>) -> State {
             label: Some("uniform_bind_group_layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
+                visibility: wgpu::ShaderStages::VERTEX,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
