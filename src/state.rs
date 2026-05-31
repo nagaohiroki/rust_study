@@ -1,38 +1,17 @@
-﻿use crate::input_manager::InputManager;
+﻿use crate::camera::Camera;
+use crate::input_manager::InputManager;
+use crate::mesh::Mesh;
+use crate::mesh::Vertex;
 use crate::time_manager::TimeManager;
+use crate::transform::Transform;
 use std::sync::Arc;
 use wgpu;
+use wgpu::util::DeviceExt;
 use winit;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Uniforms {
     mvp: glam::Mat4,
-}
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 3],
-    color: [f32; 3],
-}
-impl Vertex {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-            ],
-        }
-    }
 }
 const VERTICES: &[Vertex] = &[
     Vertex {
@@ -59,9 +38,7 @@ pub struct State {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    num_indices: u32,
+    mesh: Mesh,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     input_manager: InputManager,
@@ -175,27 +152,14 @@ impl State {
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
-        use wgpu::util::DeviceExt;
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-        let num_indices = INDICES.len() as u32;
+        let mesh = Mesh::new(&device, VERTICES, INDICES);
         Self {
             surface,
             device,
             queue,
             config,
             render_pipeline,
-            vertex_buffer,
-            index_buffer,
-            num_indices,
+            mesh,
             uniform_buffer,
             uniform_bind_group,
             input_manager: InputManager::new(),
@@ -276,29 +240,19 @@ impl State {
                 occlusion_query_set: None,
             });
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+            self.mesh.render(&mut render_pass);
         }
         self.queue.submit(std::iter::once(encoder.finish()));
         ouput.present();
     }
     fn update_shader_state(&mut self) {
         let elapsed = self.time_manager.time_since_start();
-        let rotation = glam::Mat4::from_rotation_z(elapsed);
-        let translation = glam::Mat4::from_translation(glam::vec3(elapsed.sin() * 0.5, 0.0, 0.0));
-        let scale = glam::Mat4::from_scale(glam::vec3(0.5, 0.5, 1.0));
-        let model = translation * rotation * scale;
-        let eye = glam::vec3(0.0, 1.5, -2.0);
-        let dir = glam::vec3(0.0, 0.0, 0.0);
-        let up = glam::Vec3::Y;
-        let view = glam::Mat4::look_at_lh(eye, dir, up);
-        let aspect_ratio = self.config.width as f32 / self.config.height as f32;
-        let z_near = 0.1;
-        let z_far = 100.0;
-        let proj = glam::Mat4::perspective_lh(45.0f32.to_radians(), aspect_ratio, z_near, z_far);
-        let mvp = proj * view * model;
+        let mut model = Transform::new();
+        model.position = glam::vec3(elapsed.sin() * 0.5, 0.0, 0.0);
+        model.rotation = glam::vec3(0.0, 0.0, elapsed);
+        let camera = Camera::new();
+        let mvp = camera.get_matrix(self.config.width, self.config.height) * model.get_matrix();
         let uniforms = Uniforms { mvp: mvp };
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));

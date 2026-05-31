@@ -1,6 +1,9 @@
-﻿mod input_manager;
+﻿mod camera;
+mod input_manager;
+mod mesh;
 mod state;
 mod time_manager;
+mod transform;
 use std::sync::Arc;
 use winit::{
     event::{Event, WindowEvent},
