@@ -2,6 +2,8 @@
 use crate::input_manager::InputManager;
 use crate::mesh::Mesh;
 use crate::mesh::Vertex;
+use crate::shader::Shader;
+use crate::shader_uniform::ShaderUniform;
 use crate::time_manager::TimeManager;
 use crate::transform::Transform;
 use std::sync::Arc;
@@ -37,7 +39,6 @@ pub struct State {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    render_pipeline: wgpu::RenderPipeline,
     mesh: Mesh,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
@@ -45,6 +46,7 @@ pub struct State {
     time_manager: TimeManager,
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
+    shader: Shader,
 }
 impl State {
     pub async fn new(window: Arc<winit::window::Window>) -> Self {
@@ -71,7 +73,6 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &config);
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
         let uniforms = Uniforms {
             mvp: glam::Mat4::IDENTITY,
         };
@@ -118,47 +119,18 @@ impl State {
             view_formats: &[],
         });
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&uniform_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[Vertex::desc()],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: depth_format,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-        });
         let mesh = Mesh::new(&device, VERTICES, INDICES);
+        let shader = Shader::new(
+            &device,
+            config.format,
+            depth_format,
+            crate::mesh::Vertex::desc(),
+        );
         Self {
             surface,
             device,
             queue,
             config,
-            render_pipeline,
             mesh,
             uniform_buffer,
             uniform_bind_group,
@@ -166,6 +138,7 @@ impl State {
             time_manager: TimeManager::new(),
             depth_texture,
             depth_view,
+            shader,
         }
     }
     pub fn resize(&mut self, new_size: &winit::dpi::PhysicalSize<u32>) {
@@ -239,7 +212,7 @@ impl State {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            render_pass.set_pipeline(&self.render_pipeline);
+            self.shader.bind(&mut render_pass);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             self.mesh.render(&mut render_pass);
         }

@@ -1,6 +1,8 @@
 ﻿mod camera;
 mod input_manager;
 mod mesh;
+mod shader;
+mod shader_uniform;
 mod state;
 mod time_manager;
 mod transform;
