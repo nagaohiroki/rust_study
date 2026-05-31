@@ -16,7 +16,7 @@ fn open_window() {
             .build(&event_loop)
             .unwrap(),
     );
-    let mut wgpu_state = pollster::block_on(state::init_wgpu(window.clone()));
+    let mut wgpu_state = pollster::block_on(state::State::new(window.clone()));
     event_loop
         .run(move |event, control_flow| match event {
             Event::WindowEvent {
@@ -24,10 +24,7 @@ fn open_window() {
                 window_id,
             } if window_id == window.id() => match event {
                 WindowEvent::CloseRequested => control_flow.exit(),
-                WindowEvent::RedrawRequested => {
-                    wgpu_state.update();
-                    state::render(&wgpu_state);
-                }
+                WindowEvent::RedrawRequested => wgpu_state.update(),
                 WindowEvent::Resized(size) => wgpu_state.resize(size),
                 WindowEvent::ScaleFactorChanged { .. } => wgpu_state.resize(&window.inner_size()),
                 WindowEvent::KeyboardInput {
@@ -35,9 +32,7 @@ fn open_window() {
                 } => wgpu_state.input_event(&key_event),
                 _ => {}
             },
-            Event::AboutToWait => {
-                window.request_redraw();
-            }
+            Event::AboutToWait => window.request_redraw(),
             _ => {}
         })
         .unwrap();
