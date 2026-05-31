@@ -1,10 +1,12 @@
-﻿use std::sync::Arc;
+﻿mod input_manager;
+mod state;
+mod time_manager;
+use std::sync::Arc;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
     window::WindowBuilder,
 };
-mod state;
 fn open_window() {
     let event_loop = EventLoop::new().unwrap();
     let window = Arc::new(
@@ -28,6 +30,9 @@ fn open_window() {
                 }
                 WindowEvent::Resized(size) => wgpu_state.resize(size),
                 WindowEvent::ScaleFactorChanged { .. } => wgpu_state.resize(&window.inner_size()),
+                WindowEvent::KeyboardInput {
+                    event: key_event, ..
+                } => wgpu_state.input_event(&key_event),
                 _ => {}
             },
             Event::AboutToWait => {

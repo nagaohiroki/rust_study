@@ -1,4 +1,6 @@
-﻿use std::sync::Arc;
+﻿use crate::input_manager::InputManager;
+use crate::time_manager::TimeManager;
+use std::sync::Arc;
 use wgpu;
 use winit;
 #[repr(C)]
@@ -63,6 +65,8 @@ pub struct State {
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     start_time: std::time::Instant,
+    input_manager: InputManager,
+    time_manager: TimeManager,
 }
 impl State {
     pub fn resize(&mut self, new_size: &winit::dpi::PhysicalSize<u32>) {
@@ -70,7 +74,28 @@ impl State {
         self.config.height = new_size.height;
         self.surface.configure(&self.device, &self.config);
     }
+    pub fn input_event(&mut self, key_event: &winit::event::KeyEvent) {
+        if let winit::keyboard::PhysicalKey::Code(keycode) = key_event.physical_key {
+            let is_pressed = key_event.state == winit::event::ElementState::Pressed;
+            self.input_manager.handle_event(keycode, is_pressed);
+        }
+    }
     pub fn update(&mut self) {
+        self.time_manager.update();
+        let dt = self.time_manager.delta_time();
+        self.draw();
+        if self.input_manager.pressed(winit::keyboard::KeyCode::Enter) {
+            println!("pressed enter");
+        }
+        if self.input_manager.trigger(winit::keyboard::KeyCode::Enter) {
+            println!("trigger enter");
+        }
+        if self.input_manager.released(winit::keyboard::KeyCode::Enter) {
+            println!("released enter");
+        }
+        self.input_manager.update(dt);
+    }
+    fn draw(&mut self) {
         let elapsed = self.start_time.elapsed().as_secs_f32();
         let rotation = glam::Mat4::from_rotation_z(elapsed);
         let translation = glam::Mat4::from_translation(glam::vec3(elapsed.sin() * 0.5, 0.0, 0.0));
@@ -197,6 +222,8 @@ pub async fn init_wgpu(window: Arc<winit::window::Window>) -> State {
         uniform_buffer,
         uniform_bind_group,
         start_time,
+        input_manager: InputManager::new(),
+        time_manager: TimeManager::new(),
     }
 }
 pub fn render(state: &State) {
