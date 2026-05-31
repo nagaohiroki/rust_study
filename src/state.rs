@@ -64,7 +64,6 @@ pub struct State {
     num_indices: u32,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
-    start_time: std::time::Instant,
     input_manager: InputManager,
     time_manager: TimeManager,
 }
@@ -96,7 +95,7 @@ impl State {
         self.input_manager.update(dt);
     }
     fn draw(&mut self) {
-        let elapsed = self.start_time.elapsed().as_secs_f32();
+        let elapsed = self.time_manager.time_since_start();
         let rotation = glam::Mat4::from_rotation_z(elapsed);
         let translation = glam::Mat4::from_translation(glam::vec3(elapsed.sin() * 0.5, 0.0, 0.0));
         let scale = glam::Mat4::from_scale(glam::vec3(0.5, 0.5, 1.0));
@@ -209,7 +208,6 @@ pub async fn init_wgpu(window: Arc<winit::window::Window>) -> State {
         usage: wgpu::BufferUsages::INDEX,
     });
     let num_indices = INDICES.len() as u32;
-    let start_time = std::time::Instant::now();
     State {
         surface,
         device,
@@ -221,7 +219,6 @@ pub async fn init_wgpu(window: Arc<winit::window::Window>) -> State {
         num_indices,
         uniform_buffer,
         uniform_bind_group,
-        start_time,
         input_manager: InputManager::new(),
         time_manager: TimeManager::new(),
     }
