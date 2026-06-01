@@ -32,7 +32,7 @@ pub struct Mesh {
     num_indices: u32,
 }
 impl Mesh {
-    pub fn new(device: &wgpu::Device, verices: &[Vertex], indices: &[u16]) -> Self {
+    pub fn new(device: &wgpu::Device, verices: &Vec<Vertex>, indices: &Vec<u16>) -> Self {
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Mesh Vertex Buffer"),
             contents: bytemuck::cast_slice(verices),

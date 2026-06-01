@@ -1,7 +1,7 @@
 ﻿use crate::camera::Camera;
 use crate::input_manager::InputManager;
 use crate::mesh::Mesh;
-use crate::mesh::Vertex;
+use crate::primitive::Primitive;
 use crate::shader::Shader;
 use crate::shader_uniform::ShaderUniform;
 use crate::time_manager::TimeManager;
@@ -9,25 +9,6 @@ use crate::transform::Transform;
 use std::sync::Arc;
 use wgpu;
 use winit;
-const VERTICES: &[Vertex] = &[
-    Vertex {
-        position: [0.5, 0.5, 0.0],
-        color: [1.0, 0.0, 0.0],
-    },
-    Vertex {
-        position: [-0.5, 0.5, 0.0],
-        color: [0.0, 1.0, 0.0],
-    },
-    Vertex {
-        position: [-0.5, -0.5, 0.0],
-        color: [0.0, 0.0, 1.0],
-    },
-    Vertex {
-        position: [0.5, -0.5, 0.0],
-        color: [1.0, 1.0, 0.0],
-    },
-];
-const INDICES: &[u16] = &[0, 1, 2, 2, 3, 0];
 pub struct State {
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
@@ -68,7 +49,8 @@ impl State {
         surface.configure(&device, &config);
         let (depth_texture, depth_view) =
             Self::create_depth_texture(&device, config.width, config.height);
-        let mesh = Mesh::new(&device, VERTICES, INDICES);
+        let (vertices, indices) = Primitive::quad();
+        let mesh = Mesh::new(&device, &vertices, &indices);
         let shader = Shader::new(
             &device,
             config.format,
