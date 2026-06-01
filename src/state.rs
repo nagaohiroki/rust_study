@@ -8,13 +8,7 @@ use crate::time_manager::TimeManager;
 use crate::transform::Transform;
 use std::sync::Arc;
 use wgpu;
-use wgpu::util::DeviceExt;
 use winit;
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Uniforms {
-    mvp: glam::Mat4,
-}
 const VERTICES: &[Vertex] = &[
     Vertex {
         position: [0.5, 0.5, 0.0],
@@ -40,13 +34,12 @@ pub struct State {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     mesh: Mesh,
-    uniform_buffer: wgpu::Buffer,
-    uniform_bind_group: wgpu::BindGroup,
     input_manager: InputManager,
     time_manager: TimeManager,
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
     shader: Shader,
+    uniform: ShaderUniform,
 }
 impl State {
     pub async fn new(window: Arc<winit::window::Window>) -> Self {
@@ -73,96 +66,36 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &config);
-        let uniforms = Uniforms {
-            mvp: glam::Mat4::IDENTITY,
-        };
-        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Uniform Buffer"),
-            contents: bytemuck::bytes_of(&uniforms),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let uniform_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("uniform_bind_group_layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("uniform_bind_group"),
-            layout: &uniform_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
-        });
-        let depth_format = wgpu::TextureFormat::Depth32Float;
-        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Depth Texture"),
-            size: wgpu::Extent3d {
-                width: config.width,
-                height: config.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: depth_format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let (depth_texture, depth_view) =
+            Self::create_depth_texture(&device, config.width, config.height);
         let mesh = Mesh::new(&device, VERTICES, INDICES);
         let shader = Shader::new(
             &device,
             config.format,
-            depth_format,
+            wgpu::TextureFormat::Depth32Float,
             crate::mesh::Vertex::desc(),
         );
+        let uniform = ShaderUniform::new(&device);
         Self {
             surface,
             device,
             queue,
             config,
             mesh,
-            uniform_buffer,
-            uniform_bind_group,
             input_manager: InputManager::new(),
             time_manager: TimeManager::new(),
             depth_texture,
             depth_view,
             shader,
+            uniform,
         }
     }
     pub fn resize(&mut self, new_size: &winit::dpi::PhysicalSize<u32>) {
         self.config.width = new_size.width;
         self.config.height = new_size.height;
         self.surface.configure(&self.device, &self.config);
-        let depth_format = wgpu::TextureFormat::Depth32Float;
-        self.depth_texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Depth Texture"),
-            size: wgpu::Extent3d {
-                width: self.config.width,
-                height: self.config.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: depth_format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        self.depth_view = self
-            .depth_texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        (self.depth_texture, self.depth_view) =
+            Self::create_depth_texture(&self.device, self.config.width, self.config.height);
     }
     pub fn input_event(&mut self, key_event: &winit::event::KeyEvent) {
         if let winit::keyboard::PhysicalKey::Code(keycode) = key_event.physical_key {
@@ -173,7 +106,6 @@ impl State {
     pub fn update(&mut self) {
         self.time_manager.update();
         self.update_game();
-        self.update_shader_state();
         self.input_manager.update(self.time_manager.delta_time());
         self.render();
     }
@@ -213,22 +145,11 @@ impl State {
                 occlusion_query_set: None,
             });
             self.shader.bind(&mut render_pass);
-            render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
+            self.uniform.bind(&mut self.queue, &mut render_pass);
             self.mesh.render(&mut render_pass);
         }
         self.queue.submit(std::iter::once(encoder.finish()));
         ouput.present();
-    }
-    fn update_shader_state(&mut self) {
-        let elapsed = self.time_manager.time_since_start();
-        let mut model = Transform::new();
-        model.position = glam::vec3(elapsed.sin() * 0.5, 0.0, 0.0);
-        model.rotation = glam::vec3(0.0, 0.0, elapsed);
-        let camera = Camera::new();
-        let mvp = camera.get_matrix(self.config.width, self.config.height) * model.get_matrix();
-        let uniforms = Uniforms { mvp: mvp };
-        self.queue
-            .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
     }
     fn update_game(&mut self) {
         if self.input_manager.pressed(winit::keyboard::KeyCode::Enter) {
@@ -240,5 +161,35 @@ impl State {
         if self.input_manager.released(winit::keyboard::KeyCode::Enter) {
             println!("released enter");
         }
+        let elapsed = self.time_manager.time_since_start();
+        let mut model = Transform::new();
+        model.position = glam::vec3(elapsed.sin() * 0.5, 0.0, 0.0);
+        model.rotation = glam::vec3(0.0, 0.0, elapsed);
+        let camera = Camera::new();
+        let mvp = camera.get_matrix(self.config.width, self.config.height) * model.get_matrix();
+        self.uniform.set_matrix(mvp);
+    }
+    fn create_depth_texture(
+        device: &wgpu::Device,
+        width: u32,
+        height: u32,
+    ) -> (wgpu::Texture, wgpu::TextureView) {
+        let depth_format = wgpu::TextureFormat::Depth32Float;
+        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Texture"),
+            size: wgpu::Extent3d {
+                width: width,
+                height: height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: depth_format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        (depth_texture, depth_view)
     }
 }
