@@ -25,3 +25,8 @@ impl Camera {
         proj * view
     }
 }
+impl Default for Camera {
+    fn default() -> Self {
+        Self::new()
+    }
+}

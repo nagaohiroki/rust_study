@@ -1,11 +1,8 @@
-﻿use crate::camera::Camera;
-use crate::input_manager::InputManager;
-use crate::mesh::Mesh;
-use crate::primitive::Primitive;
+﻿use crate::input_manager::InputManager;
+use crate::scene::Scene;
 use crate::shader::Shader;
 use crate::shader_uniform::ShaderUniform;
 use crate::time_manager::TimeManager;
-use crate::transform::Transform;
 use std::sync::Arc;
 use wgpu;
 use winit;
@@ -14,13 +11,13 @@ pub struct State {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    mesh: Mesh,
-    input_manager: InputManager,
-    time_manager: TimeManager,
+    pub input: InputManager,
+    pub time: TimeManager,
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
     shader: Shader,
     uniform: ShaderUniform,
+    scene: Scene,
 }
 impl State {
     pub async fn new(window: Arc<winit::window::Window>) -> Self {
@@ -49,8 +46,6 @@ impl State {
         surface.configure(&device, &config);
         let (depth_texture, depth_view) =
             Self::create_depth_texture(&device, config.width, config.height);
-        let (vertices, indices) = Primitive::quad();
-        let mesh = Mesh::new(&device, &vertices, &indices);
         let shader = Shader::new(
             &device,
             config.format,
@@ -58,18 +53,19 @@ impl State {
             crate::mesh::Vertex::desc(),
         );
         let uniform = ShaderUniform::new(&device);
+        let scene = Scene::create_test(&device);
         Self {
             surface,
             device,
             queue,
             config,
-            mesh,
-            input_manager: InputManager::new(),
-            time_manager: TimeManager::new(),
+            input: InputManager::new(),
+            time: TimeManager::new(),
             depth_texture,
             depth_view,
             shader,
             uniform,
+            scene,
         }
     }
     pub fn resize(&mut self, new_size: &winit::dpi::PhysicalSize<u32>) {
@@ -82,16 +78,17 @@ impl State {
     pub fn input_event(&mut self, key_event: &winit::event::KeyEvent) {
         if let winit::keyboard::PhysicalKey::Code(keycode) = key_event.physical_key {
             let is_pressed = key_event.state == winit::event::ElementState::Pressed;
-            self.input_manager.handle_event(keycode, is_pressed);
+            self.input.handle_event(keycode, is_pressed);
         }
     }
     pub fn update(&mut self) {
-        self.time_manager.update();
-        self.update_game();
-        self.input_manager.update(self.time_manager.delta_time());
-        self.render();
+        self.time.update();
+        self.scene.update(&self.input, &self.time);
+        self.input.update(self.time.delta_time());
+        self.render_system();
     }
-    fn render(&mut self) {
+    fn render_system(&mut self) {
+        let world = &self.scene.world;
         let ouput = self.surface.get_current_texture().unwrap();
         let view = ouput
             .texture
@@ -99,7 +96,12 @@ impl State {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        {
+        for (cam_trans_op, cam_op) in world.transforms.iter().zip(world.cameras.iter()) {
+            let (Some(cam_trans), Some(cam)) = (cam_trans_op, cam_op) else {
+                continue;
+            };
+            let cam_mat = cam.get_matrix(self.config.width, self.config.height);
+            let view_proj = cam_mat * cam_trans.get_matrix();
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -127,29 +129,17 @@ impl State {
                 occlusion_query_set: None,
             });
             self.shader.bind(&mut render_pass);
-            self.uniform.bind(&mut self.queue, &mut render_pass);
-            self.mesh.render(&mut render_pass);
+            for (trans_op, mesh_op) in world.transforms.iter().zip(world.meshes.iter()) {
+                let (Some(trans), Some(mesh)) = (trans_op, mesh_op) else {
+                    continue;
+                };
+                let mvp = view_proj * trans.get_matrix();
+                self.uniform.bind_matrix(&self.queue, &mut render_pass, mvp);
+                mesh.render(&mut render_pass);
+            }
         }
         self.queue.submit(std::iter::once(encoder.finish()));
         ouput.present();
-    }
-    fn update_game(&mut self) {
-        if self.input_manager.pressed(winit::keyboard::KeyCode::Enter) {
-            println!("pressed enter");
-        }
-        if self.input_manager.trigger(winit::keyboard::KeyCode::Enter) {
-            println!("trigger enter");
-        }
-        if self.input_manager.released(winit::keyboard::KeyCode::Enter) {
-            println!("released enter");
-        }
-        let elapsed = self.time_manager.time_since_start();
-        let mut model = Transform::new();
-        model.position = glam::vec3(elapsed.sin() * 0.5, 0.0, 0.0);
-        model.rotation = glam::vec3(0.0, 0.0, elapsed);
-        let camera = Camera::new();
-        let mvp = camera.get_matrix(self.config.width, self.config.height) * model.get_matrix();
-        self.uniform.set_matrix(mvp);
     }
     fn create_depth_texture(
         device: &wgpu::Device,

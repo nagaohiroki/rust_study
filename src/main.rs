@@ -1,7 +1,9 @@
 ﻿mod camera;
+mod ecs;
 mod input_manager;
 mod mesh;
 mod primitive;
+mod scene;
 mod shader;
 mod shader_uniform;
 mod state;

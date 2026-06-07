@@ -21,3 +21,8 @@ impl Transform {
         pos * rot * scale
     }
 }
+impl Default for Transform {
+    fn default() -> Self {
+        Self::new()
+    }
+}
