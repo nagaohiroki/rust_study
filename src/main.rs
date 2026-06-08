@@ -4,6 +4,7 @@ mod input_manager;
 mod mesh;
 mod primitive;
 mod primitive_mesh;
+mod renderer;
 mod scene;
 mod shader;
 mod shader_uniform;
