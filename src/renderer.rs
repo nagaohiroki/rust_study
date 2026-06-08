@@ -1,8 +1,6 @@
-﻿use crate::camera::Camera;
-use crate::ecs::World;
+﻿use crate::ecs::World;
 use crate::primitive_mesh::PrimitiveMesh;
 use crate::shader::Shader;
-use crate::transform::Transform;
 use std::sync::Arc;
 use winit::dpi::PhysicalSize;
 pub struct Renderer {
@@ -72,19 +70,20 @@ impl Renderer {
             let (Some(cam_trans), Some(cam)) = (cam_trans_op, cam_op) else {
                 continue;
             };
-            let view_proj = self.calc_view_proj(cam_trans, cam);
+            let cam_mat = cam.get_matrix(self.config.width, self.config.height);
+            let view_proj = cam_mat * cam_trans.get_matrix();
+            let load_op = if cam.is_clear {
+                wgpu::LoadOp::Clear(cam.clear_color)
+            } else {
+                wgpu::LoadOp::Load
+            };
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.5,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
+                        load: load_op,
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -100,16 +99,21 @@ impl Renderer {
                 occlusion_query_set: None,
             });
             self.shader.bind(&mut render_pass);
-            for ((trans_op, prim_type_op), uniform_op) in world
+            for (((trans_op, prim_type_op), uniform_op), layer_op) in world
                 .transforms
                 .iter()
                 .zip(world.primitive_type.iter())
                 .zip(world.uniforms.iter())
+                .zip(world.layers.iter())
             {
-                let (Some(trans), Some(prim), Some(uniform)) = (trans_op, prim_type_op, uniform_op)
+                let (Some(trans), Some(prim), Some(uniform), Some(layer)) =
+                    (trans_op, prim_type_op, uniform_op, layer_op)
                 else {
                     continue;
                 };
+                if *layer != cam.culling_mask {
+                    continue;
+                }
                 let mvp = view_proj * trans.get_matrix();
                 uniform.update_matrix(&self.queue, mvp);
                 uniform.bind(&mut render_pass);
@@ -138,10 +142,6 @@ impl Renderer {
                 world.uniforms.set(entity, uniform);
             }
         }
-    }
-    fn calc_view_proj(&self, cam_trans: &Transform, cam: &Camera) -> glam::Mat4 {
-        let cam_mat = cam.get_matrix(self.config.width, self.config.height);
-        cam_mat * cam_trans.get_matrix()
     }
     fn create_depth_texture(
         device: &wgpu::Device,

@@ -1,4 +1,4 @@
-﻿use crate::camera::Camera;
+﻿use crate::camera::{Camera, Layer};
 use crate::primitive::PrimitiveType;
 use crate::shader_uniform::ShaderUniform;
 use crate::transform::Transform;
@@ -30,6 +30,7 @@ pub struct World {
     pub cameras: Component<Camera>,
     pub uniforms: Component<ShaderUniform>,
     pub primitive_type: Component<PrimitiveType>,
+    pub layers: Component<Layer>,
     next_entity_id: usize,
 }
 impl World {
