@@ -14,7 +14,7 @@ impl Scene {
         let mut world = World::default();
         let model = world.create_entity();
         world.transforms.set(model, Transform::new());
-        world.primitive_type.set(model, PrimitiveType::Quad);
+        world.primitive_type.set(model, PrimitiveType::Cube);
 
         let model1 = world.create_entity();
         let transform = Transform {

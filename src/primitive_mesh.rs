@@ -10,9 +10,16 @@ pub struct PrimitiveMesh {
 impl PrimitiveMesh {
     pub fn new(device: &wgpu::Device) -> Self {
         let mut data = HashMap::new();
-        let (vertices, indices) = Primitive::quad();
-        let mesh_quad = Arc::new(Mesh::new(&device, &vertices, &indices));
-        data.insert(PrimitiveType::Quad, mesh_quad);
+        {
+            let (vertices, indices) = Primitive::quad();
+            let mesh = Arc::new(Mesh::new(&device, &vertices, &indices));
+            data.insert(PrimitiveType::Quad, mesh);
+        }
+        {
+            let (vertices, indices) = Primitive::cube();
+            let mesh = Arc::new(Mesh::new(&device, &vertices, &indices));
+            data.insert(PrimitiveType::Cube, mesh);
+        }
         Self { data }
     }
     pub fn get(&self, primitive_type: PrimitiveType) -> Option<&Arc<Mesh>> {
