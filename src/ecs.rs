@@ -1,5 +1,6 @@
 ﻿use crate::camera::Camera;
 use crate::mesh::Mesh;
+use crate::shader_uniform::ShaderUniform;
 use crate::transform::Transform;
 use std::sync::Arc;
 pub struct Component<T> {
@@ -29,6 +30,7 @@ pub struct World {
     pub transforms: Component<Transform>,
     pub meshes: Component<Arc<Mesh>>,
     pub cameras: Component<Camera>,
+    pub uniforms: Component<ShaderUniform>,
     next_entity_id: usize,
 }
 impl World {

@@ -1,5 +1,6 @@
 ﻿pub struct Shader {
     pipeline: wgpu::RenderPipeline,
+    pub uniform_bind_group_layout: wgpu::BindGroupLayout,
 }
 impl Shader {
     pub fn new(
@@ -22,6 +23,20 @@ impl Shader {
                 count: None,
             }],
         });
+        let uniform_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("uniform_bind_group_layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Shader Render Pipeline Layout"),
@@ -56,7 +71,10 @@ impl Shader {
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
-        Self { pipeline }
+        Self {
+            pipeline,
+            uniform_bind_group_layout,
+        }
     }
     pub fn bind<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_pipeline(&self.pipeline);

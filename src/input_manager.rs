@@ -47,15 +47,16 @@ impl InputManager {
     pub fn pressed(&self, keycode: KeyCode) -> bool {
         self.input_data.get(&keycode).map_or(false, |d| d.pressed)
     }
+    /*
     pub fn trigger(&self, keycode: KeyCode) -> bool {
         self.input_data.get(&keycode).map_or(false, |d| d.trigger)
     }
     pub fn released(&self, keycode: KeyCode) -> bool {
         self.input_data.get(&keycode).map_or(false, |d| d.released)
     }
-    // pub fn pressed_time(&self, keycode: KeyCode) -> f32 {
-    //     self.input_data
-    //         .get(&keycode)
-    //         .map_or(0.0, |d| d.pressed_time)
-    // }
+    pub fn pressed_time(&self, keycode: KeyCode) -> f32 {
+        self.input_data
+            .get(&keycode)
+            .map_or(0.0, |d| d.pressed_time)
+    }*/
 }

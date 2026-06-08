@@ -1,7 +1,6 @@
 ﻿use crate::input_manager::InputManager;
 use crate::scene::Scene;
 use crate::shader::Shader;
-use crate::shader_uniform::ShaderUniform;
 use crate::time_manager::TimeManager;
 use std::sync::Arc;
 use wgpu;
@@ -16,7 +15,6 @@ pub struct State {
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
     shader: Shader,
-    uniform: ShaderUniform,
     scene: Scene,
 }
 impl State {
@@ -52,8 +50,7 @@ impl State {
             wgpu::TextureFormat::Depth32Float,
             crate::mesh::Vertex::desc(),
         );
-        let uniform = ShaderUniform::new(&device);
-        let scene = Scene::create_test(&device);
+        let scene = Self::create_scene(&device, &shader.uniform_bind_group_layout);
         Self {
             surface,
             device,
@@ -64,10 +61,20 @@ impl State {
             depth_texture,
             depth_view,
             shader,
-            uniform,
             scene,
         }
     }
+    fn create_scene(device: &wgpu::Device, layout: &wgpu::BindGroupLayout) -> Scene {
+        let mut scene = Scene::create_test(&device);
+        for (entity, trans_op) in scene.world.transforms.iter().enumerate() {
+            if trans_op.is_some() {
+                let uniform = crate::shader_uniform::ShaderUniform::new(&device, &layout);
+                scene.world.uniforms.set(entity, uniform);
+            }
+        }
+        scene
+    }
+
     pub fn resize(&mut self, new_size: &winit::dpi::PhysicalSize<u32>) {
         self.config.width = new_size.width;
         self.config.height = new_size.height;
@@ -129,12 +136,19 @@ impl State {
                 occlusion_query_set: None,
             });
             self.shader.bind(&mut render_pass);
-            for (trans_op, mesh_op) in world.transforms.iter().zip(world.meshes.iter()) {
-                let (Some(trans), Some(mesh)) = (trans_op, mesh_op) else {
+            for ((trans_op, mesh_op), uniform_op) in world
+                .transforms
+                .iter()
+                .zip(world.meshes.iter())
+                .zip(world.uniforms.iter())
+            {
+                let (Some(trans), Some(mesh), Some(uniform)) = (trans_op, mesh_op, uniform_op)
+                else {
                     continue;
                 };
                 let mvp = view_proj * trans.get_matrix();
-                self.uniform.bind_matrix(&self.queue, &mut render_pass, mvp);
+                uniform.update_matrix(&self.queue, mvp);
+                uniform.bind(&mut render_pass);
                 mesh.render(&mut render_pass);
             }
         }
