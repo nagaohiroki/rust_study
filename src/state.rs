@@ -1,4 +1,5 @@
 ﻿use crate::input_manager::InputManager;
+use crate::primitive_mesh::PrimitiveMesh;
 use crate::scene::Scene;
 use crate::shader::Shader;
 use crate::time_manager::TimeManager;
@@ -16,6 +17,7 @@ pub struct State {
     depth_view: wgpu::TextureView,
     shader: Shader,
     scene: Scene,
+    primitive_mesh: PrimitiveMesh,
 }
 impl State {
     pub async fn new(window: Arc<winit::window::Window>) -> Self {
@@ -51,6 +53,7 @@ impl State {
             crate::mesh::Vertex::desc(),
         );
         let scene = Self::create_scene(&device, &shader.uniform_bind_group_layout);
+        let primitive_mesh = PrimitiveMesh::new(&device);
         Self {
             surface,
             device,
@@ -62,10 +65,11 @@ impl State {
             depth_view,
             shader,
             scene,
+            primitive_mesh,
         }
     }
     fn create_scene(device: &wgpu::Device, layout: &wgpu::BindGroupLayout) -> Scene {
-        let mut scene = Scene::create_test(&device);
+        let mut scene = Scene::create_test();
         for (entity, trans_op) in scene.world.transforms.iter().enumerate() {
             if trans_op.is_some() {
                 let uniform = crate::shader_uniform::ShaderUniform::new(&device, &layout);
@@ -74,7 +78,6 @@ impl State {
         }
         scene
     }
-
     pub fn resize(&mut self, new_size: &winit::dpi::PhysicalSize<u32>) {
         self.config.width = new_size.width;
         self.config.height = new_size.height;
@@ -136,20 +139,22 @@ impl State {
                 occlusion_query_set: None,
             });
             self.shader.bind(&mut render_pass);
-            for ((trans_op, mesh_op), uniform_op) in world
+            for ((trans_op, prim_type_op), uniform_op) in world
                 .transforms
                 .iter()
-                .zip(world.meshes.iter())
+                .zip(world.primitive_type.iter())
                 .zip(world.uniforms.iter())
             {
-                let (Some(trans), Some(mesh), Some(uniform)) = (trans_op, mesh_op, uniform_op)
+                let (Some(trans), Some(prim), Some(uniform)) = (trans_op, prim_type_op, uniform_op)
                 else {
                     continue;
                 };
                 let mvp = view_proj * trans.get_matrix();
                 uniform.update_matrix(&self.queue, mvp);
                 uniform.bind(&mut render_pass);
-                mesh.render(&mut render_pass);
+                if let Some(mesh) = self.primitive_mesh.get(*prim) {
+                    mesh.render(&mut render_pass);
+                }
             }
         }
         self.queue.submit(std::iter::once(encoder.finish()));

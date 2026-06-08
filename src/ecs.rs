@@ -1,8 +1,7 @@
 ﻿use crate::camera::Camera;
-use crate::mesh::Mesh;
+use crate::primitive::PrimitiveType;
 use crate::shader_uniform::ShaderUniform;
 use crate::transform::Transform;
-use std::sync::Arc;
 pub struct Component<T> {
     data: Vec<Option<T>>,
 }
@@ -28,9 +27,9 @@ impl<T> Default for Component<T> {
 #[derive(Default)]
 pub struct World {
     pub transforms: Component<Transform>,
-    pub meshes: Component<Arc<Mesh>>,
     pub cameras: Component<Camera>,
     pub uniforms: Component<ShaderUniform>,
+    pub primitive_type: Component<PrimitiveType>,
     next_entity_id: usize,
 }
 impl World {

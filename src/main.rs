@@ -3,6 +3,7 @@ mod ecs;
 mod input_manager;
 mod mesh;
 mod primitive;
+mod primitive_mesh;
 mod scene;
 mod shader;
 mod shader_uniform;

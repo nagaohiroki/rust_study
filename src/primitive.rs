@@ -1,4 +1,8 @@
 ﻿use crate::mesh::Vertex;
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum PrimitiveType {
+    Quad,
+}
 pub struct Primitive;
 impl Primitive {
     pub fn quad() -> (Vec<Vertex>, Vec<u16>) {
