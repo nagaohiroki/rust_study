@@ -9,6 +9,7 @@ mod scene;
 mod shader;
 mod shader_uniform;
 mod state;
+mod texture;
 mod time_manager;
 mod transform;
 use std::sync::Arc;

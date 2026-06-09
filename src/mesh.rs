@@ -4,6 +4,7 @@
 pub struct Vertex {
     pub position: [f32; 3],
     pub color: [f32; 3],
+    pub tex_coords: [f32; 2],
 }
 impl Vertex {
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
@@ -20,6 +21,12 @@ impl Vertex {
                     offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: (std::mem::size_of::<[f32; 3]>() + std::mem::size_of::<[f32; 3]>())
+                        as wgpu::BufferAddress,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x2,
                 },
             ],
         }
