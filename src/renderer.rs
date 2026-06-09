@@ -70,8 +70,11 @@ impl Renderer {
             let (Some(cam_trans), Some(cam)) = (cam_trans_op, cam_op) else {
                 continue;
             };
-            let cam_mat = cam.get_matrix(self.config.width, self.config.height);
-            let view_proj = cam_mat * cam_trans.get_matrix();
+            let view_proj = cam.get_matrix(
+                self.config.width,
+                self.config.height,
+                cam_trans.get_matrix(),
+            );
             let load_op = if cam.is_clear {
                 wgpu::LoadOp::Clear(cam.clear_color)
             } else {

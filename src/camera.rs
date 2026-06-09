@@ -1,4 +1,4 @@
-﻿use glam::{Mat4, Vec3};
+﻿use glam::Mat4;
 use wgpu::Color;
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ProjectionType {
@@ -15,9 +15,6 @@ pub struct Camera {
     pub culling_mask: Layer,
     pub is_clear: bool,
     pub clear_color: Color,
-    position: Vec3,
-    target: Vec3,
-    up: Vec3,
     fov: f32,
     near: f32,
     far: f32,
@@ -27,9 +24,6 @@ impl Camera {
         Self {
             projection_type: ProjectionType::Perspective,
             culling_mask: Layer::Default,
-            position: glam::vec3(0.0, 1.5, -2.0),
-            target: Vec3::ZERO,
-            up: Vec3::Y,
             fov: 45.0,
             near: 0.1,
             far: 100.0,
@@ -46,9 +40,6 @@ impl Camera {
         Self {
             projection_type: ProjectionType::Orthographic,
             culling_mask: Layer::UI,
-            position: glam::vec3(0.0, 1.5, -2.0),
-            target: Vec3::ZERO,
-            up: Vec3::Y,
             fov: 45.0,
             near: 0.1,
             far: 100.0,
@@ -61,13 +52,12 @@ impl Camera {
             },
         }
     }
-    pub fn get_matrix(&self, width: u32, height: u32) -> Mat4 {
+    pub fn get_matrix(&self, width: u32, height: u32, view: Mat4) -> Mat4 {
         match self.projection_type {
             ProjectionType::Perspective => {
-                let view = Mat4::look_at_lh(self.position, self.target, self.up);
                 let aspect = width as f32 / height as f32;
                 let proj = Mat4::perspective_lh(self.fov, aspect, self.near, self.far);
-                proj * view
+                proj * view.inverse()
             }
             ProjectionType::Orthographic => {
                 glam::Mat4::orthographic_lh(0.0, width as f32, height as f32, 0.0, 0.0, 1.0)

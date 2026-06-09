@@ -21,14 +21,17 @@ impl Scene {
         let transform = Transform {
             position: Vec3::ZERO,
             rotation: Vec3::ZERO,
-            scale: glam::vec3(1.0, 1.0, 1.0),
+            scale: glam::vec3(100.0, 100.0, 1.0),
         };
         world.transforms.set(model1, transform);
         world.primitive_type.set(model1, PrimitiveType::Quad);
         world.layers.set(model1, Layer::UI);
 
         let camera_3d = world.create_entity();
-        world.transforms.set(camera_3d, Transform::new());
+        let mut trans_3d = Transform::new();
+        trans_3d.position.z = -5.0;
+        trans_3d.position.y = 1.0;
+        world.transforms.set(camera_3d, trans_3d);
         world.cameras.set(camera_3d, Camera::new());
 
         let camera_ui = world.create_entity();
@@ -43,17 +46,24 @@ impl Scene {
     pub fn update(&mut self, input: &InputManager, time: &TimeManager) {
         if let Some(transform) = self.world.transforms.get_mut(self.model) {
             transform.rotation = glam::vec3(0.0, 0.0, time.time_since_start());
+            let speed = 1.0;
             if input.pressed(winit::keyboard::KeyCode::KeyW) {
-                transform.position.y += 1.0 * time.delta_time();
+                transform.position.y += speed * time.delta_time();
             }
             if input.pressed(winit::keyboard::KeyCode::KeyS) {
-                transform.position.y -= 1.0 * time.delta_time();
+                transform.position.y -= speed * time.delta_time();
             }
             if input.pressed(winit::keyboard::KeyCode::KeyA) {
-                transform.position.x -= 1.0 * time.delta_time();
+                transform.position.x -= speed * time.delta_time();
             }
             if input.pressed(winit::keyboard::KeyCode::KeyD) {
-                transform.position.x += 1.0 * time.delta_time();
+                transform.position.x += speed * time.delta_time();
+            }
+            if input.pressed(winit::keyboard::KeyCode::KeyQ) {
+                transform.position.z -= speed * time.delta_time();
+            }
+            if input.pressed(winit::keyboard::KeyCode::KeyE) {
+                transform.position.z += speed * time.delta_time();
             }
         }
     }
