@@ -13,9 +13,19 @@ impl Texture {
         let img = image::load_from_memory(bytes).unwrap();
         let rgba = img.to_rgba8();
         let dimensions = img.dimensions();
+        Self::from_pixels(&device, &queue, &rgba, dimensions.0, dimensions.1, &label)
+    }
+    pub fn from_pixels(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        rgba_pixels: &[u8],
+        width: u32,
+        height: u32,
+        label: &str,
+    ) -> Texture {
         let size = wgpu::Extent3d {
-            width: dimensions.0,
-            height: dimensions.1,
+            width: width,
+            height: height,
             depth_or_array_layers: 1,
         };
         let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -35,11 +45,11 @@ impl Texture {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            &rgba,
+            &rgba_pixels,
             wgpu::ImageDataLayout {
                 offset: 0,
-                bytes_per_row: Some(4 * dimensions.0),
-                rows_per_image: Some(dimensions.1),
+                bytes_per_row: Some(4 * width),
+                rows_per_image: Some(height),
             },
             size,
         );

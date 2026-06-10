@@ -1,6 +1,7 @@
 ﻿use crate::camera::{Camera, Layer};
 use crate::primitive::PrimitiveType;
 use crate::shader_uniform::ShaderUniform;
+use crate::texture_library::TextureType;
 use crate::transform::Transform;
 pub struct Component<T> {
     data: Vec<Option<T>>,
@@ -30,6 +31,7 @@ pub struct World {
     pub cameras: Component<Camera>,
     pub uniforms: Component<ShaderUniform>,
     pub primitive_type: Component<PrimitiveType>,
+    pub texture_type: Component<TextureType>,
     pub layers: Component<Layer>,
     next_entity_id: usize,
 }

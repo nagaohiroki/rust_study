@@ -10,6 +10,7 @@ mod shader;
 mod shader_uniform;
 mod state;
 mod texture;
+mod texture_library;
 mod time_manager;
 mod transform;
 use std::sync::Arc;

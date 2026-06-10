@@ -1,7 +1,7 @@
 ﻿use crate::ecs::World;
 use crate::primitive_mesh::PrimitiveMesh;
 use crate::shader::Shader;
-use crate::texture::Texture;
+use crate::texture_library::TextureLibrary;
 use std::sync::Arc;
 use winit::dpi::PhysicalSize;
 pub struct Renderer {
@@ -137,21 +137,22 @@ impl Renderer {
             Self::create_depth_texture(&self.device, self.config.width, self.config.height);
     }
     pub fn setup_world(&mut self, world: &mut World) {
-        let bytes = include_bytes!("image.png");
-        let default_texture =
-            Texture::from_bytes(&self.device, &self.queue, bytes, "Default Texture");
-        for (entity, (trans_op, prim_op)) in world
+        let texture_library = TextureLibrary::new(&self.device, &self.queue);
+        for (entity, ((trans_op, prim_op), tex_op)) in world
             .transforms
             .iter()
             .zip(world.primitive_type.iter())
+            .zip(world.texture_type.iter())
             .enumerate()
         {
-            if trans_op.is_some() && prim_op.is_some() {
+            if trans_op.is_some() && prim_op.is_some() && tex_op.is_some() {
+                let tex_type = tex_op.unwrap();
+                let texture = texture_library.get(&tex_type).unwrap();
                 let uniform = crate::shader_uniform::ShaderUniform::new(
                     &self.device,
                     &self.shader.uniform_bind_group_layout,
-                    &default_texture.view,
-                    &default_texture.sampler,
+                    &texture.view,
+                    &texture.sampler,
                 );
                 world.uniforms.set(entity, uniform);
             }

@@ -2,6 +2,7 @@
 use crate::ecs::World;
 use crate::input_manager::InputManager;
 use crate::primitive::PrimitiveType;
+use crate::texture_library::TextureType;
 use crate::time_manager::TimeManager;
 use crate::transform::Transform;
 use glam::Vec3;
@@ -15,6 +16,7 @@ impl Scene {
         let model = world.create_entity();
         world.transforms.set(model, Transform::new());
         world.primitive_type.set(model, PrimitiveType::Cube);
+        world.texture_type.set(model, TextureType::None);
         world.layers.set(model, Layer::Default);
 
         let model1 = world.create_entity();
@@ -27,6 +29,7 @@ impl Scene {
             },
         );
         world.primitive_type.set(model1, PrimitiveType::Quad);
+        world.texture_type.set(model1, TextureType::Test);
         world.layers.set(model1, Layer::UI);
 
         let camera_3d = world.create_entity();
