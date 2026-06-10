@@ -1,19 +1,22 @@
-﻿use wgpu::util::DeviceExt;
+﻿use crate::{shader::ShaderType, texture::Texture};
+use std::sync::Arc;
+use wgpu::util::DeviceExt;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Uniforms {
     pub mvp: glam::Mat4,
 }
-pub struct ShaderUniform {
+pub struct Material {
     buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
+    pub shader_type: ShaderType,
 }
-impl ShaderUniform {
+impl Material {
     pub fn new(
         device: &wgpu::Device,
         layout: &wgpu::BindGroupLayout,
-        texture_view: &wgpu::TextureView,
-        sampler: &wgpu::Sampler,
+        texture: Arc<Texture>,
+        shader_type: ShaderType,
     ) -> Self {
         let data = Uniforms {
             mvp: glam::Mat4::IDENTITY,
@@ -33,15 +36,19 @@ impl ShaderUniform {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(texture_view),
+                    resource: wgpu::BindingResource::TextureView(&texture.view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: wgpu::BindingResource::Sampler(sampler),
+                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
                 },
             ],
         });
-        Self { buffer, bind_group }
+        Self {
+            buffer,
+            bind_group,
+            shader_type,
+        }
     }
     pub fn update_matrix(&self, queue: &wgpu::Queue, matrix: glam::Mat4) {
         let data = Uniforms { mvp: matrix };

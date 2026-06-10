@@ -1,6 +1,11 @@
-﻿pub struct Shader {
-    pipeline: wgpu::RenderPipeline,
+﻿use std::collections::HashMap;
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ShaderType {
+    Default,
+}
+pub struct Shader {
     pub uniform_bind_group_layout: wgpu::BindGroupLayout,
+    pipelines: HashMap<ShaderType, wgpu::RenderPipeline>,
 }
 impl Shader {
     pub fn new(
@@ -10,38 +15,7 @@ impl Shader {
         vertex_layout: wgpu::VertexBufferLayout<'static>,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
-        let uniform_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Shader Uniform Bind Group Layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                ],
-            });
+        let uniform_bind_group_layout = Self::create_uniform_layout(&device);
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Shader Render Pipeline Layout"),
@@ -76,12 +50,48 @@ impl Shader {
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
+
+        let mut pipelines = HashMap::new();
+        pipelines.insert(ShaderType::Default, pipeline);
         Self {
-            pipeline,
             uniform_bind_group_layout,
+            pipelines,
         }
     }
-    pub fn bind<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-        render_pass.set_pipeline(&self.pipeline);
+    pub fn get(&self, shader_type: ShaderType) -> Option<&wgpu::RenderPipeline> {
+        self.pipelines.get(&shader_type)
+    }
+    fn create_uniform_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Shader Uniform Bind Group Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        })
     }
 }

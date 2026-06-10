@@ -1,6 +1,6 @@
 ﻿use crate::ecs::World;
 use crate::primitive_mesh::PrimitiveMesh;
-use crate::shader::Shader;
+use crate::shader::{Shader, ShaderType};
 use crate::texture_library::TextureLibrary;
 use std::sync::Arc;
 use winit::dpi::PhysicalSize;
@@ -102,25 +102,27 @@ impl Renderer {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            self.shader.bind(&mut render_pass);
-            for (((trans_op, prim_type_op), uniform_op), layer_op) in world
+            for (((trans_op, prim_type_op), material_op), layer_op) in world
                 .transforms
                 .iter()
                 .zip(world.primitive_type.iter())
-                .zip(world.uniforms.iter())
+                .zip(world.materials.iter())
                 .zip(world.layers.iter())
             {
-                let (Some(trans), Some(prim), Some(uniform), Some(layer)) =
-                    (trans_op, prim_type_op, uniform_op, layer_op)
+                let (Some(trans), Some(prim), Some(material), Some(layer)) =
+                    (trans_op, prim_type_op, material_op, layer_op)
                 else {
                     continue;
                 };
                 if *layer != cam.culling_mask {
                     continue;
                 }
+                if let Some(pipeline) = self.shader.get(material.shader_type) {
+                    render_pass.set_pipeline(&pipeline);
+                }
                 let mvp = view_proj * trans.get_matrix();
-                uniform.update_matrix(&self.queue, mvp);
-                uniform.bind(&mut render_pass);
+                material.update_matrix(&self.queue, mvp);
+                material.bind(&mut render_pass);
                 if let Some(mesh) = self.primitive_mesh.get(*prim) {
                     mesh.render(&mut render_pass);
                 }
@@ -147,14 +149,15 @@ impl Renderer {
         {
             if trans_op.is_some() && prim_op.is_some() && tex_op.is_some() {
                 let tex_type = tex_op.unwrap();
-                let texture = texture_library.get(&tex_type).unwrap();
-                let uniform = crate::shader_uniform::ShaderUniform::new(
+                let texture = texture_library.get(&tex_type).unwrap().clone();
+                let shader_type = ShaderType::Default;
+                let material = crate::material::Material::new(
                     &self.device,
                     &self.shader.uniform_bind_group_layout,
-                    &texture.view,
-                    &texture.sampler,
+                    texture,
+                    shader_type,
                 );
-                world.uniforms.set(entity, uniform);
+                world.materials.set(entity, material);
             }
         }
     }

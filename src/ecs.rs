@@ -1,6 +1,6 @@
 ﻿use crate::camera::{Camera, Layer};
+use crate::material::Material;
 use crate::primitive::PrimitiveType;
-use crate::shader_uniform::ShaderUniform;
 use crate::texture_library::TextureType;
 use crate::transform::Transform;
 pub struct Component<T> {
@@ -29,7 +29,7 @@ impl<T> Default for Component<T> {
 pub struct World {
     pub transforms: Component<Transform>,
     pub cameras: Component<Camera>,
-    pub uniforms: Component<ShaderUniform>,
+    pub materials: Component<Material>,
     pub primitive_type: Component<PrimitiveType>,
     pub texture_type: Component<TextureType>,
     pub layers: Component<Layer>,
