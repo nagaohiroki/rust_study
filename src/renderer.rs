@@ -152,18 +152,21 @@ impl Renderer {
             .zip(world.texture_type.iter())
             .enumerate()
         {
-            if trans_op.is_some() && prim_op.is_some() && tex_op.is_some() {
-                let tex_type = tex_op.unwrap();
-                let texture = texture_library.get(&tex_type).unwrap().clone();
-                let shader_type = ShaderType::Default;
-                let material = crate::material::Material::new(
-                    &self.device,
-                    &self.shader.uniform_bind_group_layout,
-                    texture,
-                    shader_type,
-                );
-                world.materials.set(entity, material);
-            }
+            let (Some(_trans), Some(_prim), Some(tex_type)) = (trans_op, prim_op, tex_op) else {
+                continue;
+            };
+            let Some(texture) = texture_library.get(tex_type) else {
+                continue;
+            };
+            let texture = texture.clone();
+            let shader_type = ShaderType::Default;
+            let material = crate::material::Material::new(
+                &self.device,
+                &self.shader.uniform_bind_group_layout,
+                texture,
+                shader_type,
+            );
+            world.materials.set(entity, material);
         }
     }
     fn create_depth_texture(
