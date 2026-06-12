@@ -16,6 +16,9 @@ impl<T> Component<T> {
     pub fn get_mut(&mut self, entity: usize) -> Option<&mut T> {
         self.data.get_mut(entity)?.as_mut()
     }
+    pub fn get(&self, entity: usize) -> Option<&T> {
+        self.data.get(entity)?.as_ref()
+    }
     pub fn iter(&self) -> std::slice::Iter<'_, Option<T>> {
         self.data.iter()
     }

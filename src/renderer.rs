@@ -2,6 +2,7 @@
 use crate::primitive_mesh::PrimitiveMesh;
 use crate::shader::{Shader, ShaderType};
 use crate::texture_library::TextureLibrary;
+use std::collections::HashMap;
 use std::sync::Arc;
 use winit::dpi::PhysicalSize;
 pub struct Renderer {
@@ -13,6 +14,7 @@ pub struct Renderer {
     primitive_mesh: PrimitiveMesh,
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
+    shader_buckets: HashMap<ShaderType, Vec<usize>>,
 }
 impl Renderer {
     pub async fn new(window: Arc<winit::window::Window>) -> Self {
@@ -48,6 +50,7 @@ impl Renderer {
             crate::mesh::Vertex::desc(),
         );
         let primitive_mesh = PrimitiveMesh::new(&device);
+        let shader_buckets = HashMap::new();
         Self {
             surface,
             device,
@@ -57,9 +60,11 @@ impl Renderer {
             primitive_mesh,
             depth_texture,
             depth_view,
+            shader_buckets,
         }
     }
     pub fn render(&mut self, world: &World) {
+        self.create_shader_buckets(&world);
         let ouput = self.surface.get_current_texture().unwrap();
         let view = ouput
             .texture
@@ -102,29 +107,29 @@ impl Renderer {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            for (((trans_op, prim_type_op), material_op), layer_op) in world
-                .transforms
-                .iter()
-                .zip(world.primitive_type.iter())
-                .zip(world.materials.iter())
-                .zip(world.layers.iter())
-            {
-                let (Some(trans), Some(prim), Some(material), Some(layer)) =
-                    (trans_op, prim_type_op, material_op, layer_op)
-                else {
+            for (shader_type, pipeline) in &self.shader.pipelines {
+                let Some(entity_ids) = self.shader_buckets.get(shader_type) else {
                     continue;
                 };
-                if *layer != cam.culling_mask {
-                    continue;
-                }
-                if let Some(pipeline) = self.shader.get(material.shader_type) {
-                    render_pass.set_pipeline(&pipeline);
-                }
-                let mvp = view_proj * trans.get_matrix();
-                material.update_matrix(&self.queue, mvp);
-                material.bind(&mut render_pass);
-                if let Some(mesh) = self.primitive_mesh.get(*prim) {
-                    mesh.render(&mut render_pass);
+                render_pass.set_pipeline(&pipeline);
+                for &entity in entity_ids {
+                    let (Some(trans), Some(prim), Some(material), Some(layer)) = (
+                        world.transforms.get(entity),
+                        world.primitive_type.get(entity),
+                        world.materials.get(entity),
+                        world.layers.get(entity),
+                    ) else {
+                        continue;
+                    };
+                    if *layer != cam.culling_mask {
+                        continue;
+                    }
+                    let mvp = view_proj * trans.get_matrix();
+                    material.update_matrix(&self.queue, mvp);
+                    material.bind(&mut render_pass);
+                    if let Some(mesh) = self.primitive_mesh.get(*prim) {
+                        mesh.render(&mut render_pass);
+                    }
                 }
             }
         }
@@ -183,5 +188,16 @@ impl Renderer {
         });
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
         (depth_texture, depth_view)
+    }
+    fn create_shader_buckets(&mut self, world: &World) {
+        self.shader_buckets.clear();
+        for (entity_id, material_op) in world.materials.iter().enumerate() {
+            if let Some(material) = material_op {
+                self.shader_buckets
+                    .entry(material.shader_type)
+                    .or_insert_with(Vec::new)
+                    .push(entity_id);
+            }
+        }
     }
 }

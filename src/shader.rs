@@ -5,7 +5,7 @@ pub enum ShaderType {
 }
 pub struct Shader {
     pub uniform_bind_group_layout: wgpu::BindGroupLayout,
-    pipelines: HashMap<ShaderType, wgpu::RenderPipeline>,
+    pub pipelines: HashMap<ShaderType, wgpu::RenderPipeline>,
 }
 impl Shader {
     pub fn new(
@@ -50,16 +50,12 @@ impl Shader {
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
-
         let mut pipelines = HashMap::new();
         pipelines.insert(ShaderType::Default, pipeline);
         Self {
             uniform_bind_group_layout,
             pipelines,
         }
-    }
-    pub fn get(&self, shader_type: ShaderType) -> Option<&wgpu::RenderPipeline> {
-        self.pipelines.get(&shader_type)
     }
     fn create_uniform_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
