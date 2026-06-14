@@ -15,6 +15,7 @@ pub struct Renderer {
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
     shader_buckets: HashMap<ShaderType, Vec<usize>>,
+    texture_library: TextureLibrary,
 }
 impl Renderer {
     pub async fn new(window: Arc<winit::window::Window>) -> Self {
@@ -51,6 +52,7 @@ impl Renderer {
         );
         let primitive_mesh = PrimitiveMesh::new(&device);
         let shader_buckets = HashMap::new();
+        let texture_library = TextureLibrary::new(&device, &queue);
         Self {
             surface,
             device,
@@ -61,10 +63,11 @@ impl Renderer {
             depth_texture,
             depth_view,
             shader_buckets,
+            texture_library,
         }
     }
     pub fn render(&mut self, world: &World) {
-        self.create_shader_buckets(&world);
+        self.create_shader_buckets(world);
         let ouput = self.surface.get_current_texture().unwrap();
         let view = ouput
             .texture
@@ -144,7 +147,6 @@ impl Renderer {
             Self::create_depth_texture(&self.device, self.config.width, self.config.height);
     }
     pub fn setup_world(&mut self, world: &mut World) {
-        let texture_library = TextureLibrary::new(&self.device, &self.queue);
         for (entity, ((trans_op, prim_op), tex_op)) in world
             .transforms
             .iter()
@@ -155,7 +157,7 @@ impl Renderer {
             let (Some(_trans), Some(_prim), Some(tex_type)) = (trans_op, prim_op, tex_op) else {
                 continue;
             };
-            let Some(texture) = texture_library.get(tex_type) else {
+            let Some(texture) = self.texture_library.get(tex_type) else {
                 continue;
             };
             let texture = texture.clone();
